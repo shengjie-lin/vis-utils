@@ -1,0 +1,13 @@
+[project]
+name = "vis-utils"
+version = "0.1.0"
+
+dependencies=[
+    "open3d==0.16.0",
+    "opencv-python",
+    "scipy",
+    "torch",
+]
+
+[tool.setuptools.packages.find]
+include = ["vis_utils"]
