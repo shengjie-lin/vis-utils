@@ -109,17 +109,15 @@ class Visualizer:
             logging.warning(f'cam_info ({cam_info}) is incomplete or inconsistent.')
         if f:
             cam_params = self.view_ctrl.convert_to_pinhole_camera_parameters()
-            # cam_params.intrinsic.set_intrinsics(self.cam_info['width'], self.cam_info['height'], self.cam_info['fx'], self.cam_info['fy'], self.cam_info['cx'] - 0.5, self.cam_info['cy'] - 0.5)
-            # Open3D errors out when cx!=(w-1)/2 or cy!=(h-1)/2
-            # Also note that fx will be set to fy if fx!=fy.
-            # The following is the best we can do.
-            cam_params.intrinsic.set_intrinsics(self.cam_info['width'], self.cam_info['height'], self.cam_info['fx'], self.cam_info['fy'], (self.cam_info['width'] - 1) / 2, (self.cam_info['height'] - 1) / 2)
-            self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params)
+            cam_params.intrinsic.set_intrinsics(self.cam_info['width'], self.cam_info['height'], self.cam_info['fx'], self.cam_info['fy'], self.cam_info['cx'] - 0.5, self.cam_info['cy'] - 0.5)
+            # If not allow_arbitrary, Open3D requires that cx==(w-1)/2 and cy==(h-1)/2.
+            self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
 
     def transform(self, T, relative=True):
         cam_params = self.view_ctrl.convert_to_pinhole_camera_parameters()
         cam_params.extrinsic = T @ (cam_params.extrinsic if relative else np.identity(4))
-        self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params)
+        # There is a bug in open3d 0.18.0 that we bypass with allow_arbitrary=True.
+        self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
 
     def capture_screen(self, do_render=False):
         return (np.asarray(self.o3d_vis.capture_screen_float_buffer(do_render=do_render)) * 255).astype(np.uint8)
@@ -138,7 +136,5 @@ class Visualizer:
 
 
 if __name__ == '__main__':
-    from vis_utils.utils import gen_circular_poses
     vis = Visualizer(frame_scale=1)
-    vis.add_trajectory(gen_circular_poses(2, 1), cam_size=0.3, line_width=0.01)
     vis.show()
