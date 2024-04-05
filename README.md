@@ -1,6 +1,6 @@
-# Vis-Utils
+# Vis Utils
 
-A collection of utilities for visualization and 3D computations.
+A collection of utilities, with focus on visualization and 3D computations.
 
 ## Install
 

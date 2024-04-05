@@ -1,7 +1,13 @@
+from datetime import datetime
+
 import cv2
 import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
+
+
+def get_cur_timestamp():
+    return datetime.now().strftime('%m-%d_%H-%M-%S')
 
 
 def ch_pose_spec(T, src, tgt, pose_type='c2w'):
