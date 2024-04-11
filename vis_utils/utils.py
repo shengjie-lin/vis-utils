@@ -83,16 +83,16 @@ def gen_hemispheric_poses(r, gamma_lo, gamma_hi=None, target=np.zeros(3), m=3, n
     return c2ws
 
 
-def complete_pts(pts):
+def complete_vecs(vecs, val=1):
     """ completes pts to be (..., 4, 1) """
-    if pts.shape[-1] != 1:
-        pts = pts[..., None]
-    s = pts.shape
+    if vecs.shape[-1] != 1:
+        vecs = vecs[..., None]
+    s = vecs.shape
     if s[-2] == 4:
-        return pts
-    if isinstance(pts, np.ndarray):
-        return np.concatenate((pts, np.ones((*s[:-2], 1, 1), dtype=pts.dtype)), axis=-2)
-    return torch.cat((pts, torch.ones(*s[:-2], 1, 1, dtype=pts.dtype, device=pts.device)), dim=-2)
+        return vecs
+    if isinstance(vecs, np.ndarray):
+        return np.concatenate((vecs, np.full((*s[:-2], 1, 1), val, dtype=vecs.dtype)), axis=-2)
+    return torch.cat((vecs, torch.full((*s[:-2], 1, 1), val, dtype=vecs.dtype, device=vecs.device)), dim=-2)
 
 
 def complete_trans(T):
@@ -151,7 +151,7 @@ def draw_pt(img, pt, K, pose=None, pose_spec=2, pose_type='c2w', radius=10, colo
     elif pose_type == 'c2w':
         pose = np.linalg.inv(pose)
     pose = ch_pose_spec(pose, pose_spec, 1, pose_type='w2c')
-    pt_cam = pose @ complete_pts(pt)
+    pt_cam = pose @ complete_vecs(pt)
     pt_img = (K @ pt_cam[:3] / pt_cam[2])[:2, 0]
     cv2.circle(img, pt_img.astype(int), radius, color, thickness=thickness)
 
