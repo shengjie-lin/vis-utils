@@ -162,3 +162,16 @@ def dilute_image(img, *args, p=0.5, color=(255, 255, 255)):
         img[t:b, l:r] = (1 - p) * img[t:b, l:r] + p * np.asarray(color)
     elif len(args) == 1:
         img[args] = (1 - p) * img[args] + p * np.asarray(color)
+
+
+def to_np_image(img):
+    if isinstance(img, np.ndarray):
+        return img
+    return (img.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+
+
+def put_texts(img, txts, x0=10, y0=10, dy=10, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
+    for txt in txts:
+        (_, h), b = cv2.getTextSize(txt, font_face, font_scale, thickness)
+        cv2.putText(img, txt, (x0, y0 + h), font_face, font_scale, color, thickness=thickness)
+        y0 += h + b + dy
