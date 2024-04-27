@@ -5,7 +5,7 @@ import numpy as np
 import open3d as o3d
 
 from vis_utils.line_mesh import LineMesh
-from vis_utils.utils import ch_pose_spec
+from vis_utils.utils import ch_cam_pose_spec
 
 
 class Visualizer:
@@ -62,7 +62,7 @@ class Visualizer:
             if pose_type == 'w2c':
                 R = R.T
                 t = -R @ t
-            R = ch_pose_spec(R, pose_spec, 1)
+            R = ch_cam_pose_spec(R, pose_spec, 1)
             cam_pts = np.vstack((t, (R @ K_invs[i] @ pts[i])[..., 0] * cam_size + t))
             cam_ls = np.array(((0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (2, 4), (3, 4)))
             points.extend(cam_pts)

@@ -3,6 +3,8 @@ from datetime import datetime
 import cv2
 import numpy as np
 import torch
+from matplotlib import pyplot as plt
+from matplotlib.colors import Normalize
 from scipy.spatial.transform import Rotation
 
 
@@ -10,13 +12,16 @@ def get_cur_timestamp():
     return datetime.now().strftime('%m-%d_%H-%M-%S')
 
 
-def ch_pose_spec(T, src, tgt, pose_type='c2w'):
-    """ pose_spec:
+def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
+    """ src/tgt spec:
             0: x->right, y->front, z->up
             1: x->right, y->down, z->front
-            2: x->right, y->up, z->back """
+            2: x->right, y->up, z->back
+        pose_type:
+            'c2w': camera to world, where world can refer to any frame
+            'w2c': world to camera """
     # x-to-0 transforms
-    Ts = np.array((np.identity(4),
+    Ts = np.array((np.eye(4),
                    ((1, 0, 0, 0),
                     (0, 0, 1, 0),
                     (0, -1, 0, 0),
@@ -48,7 +53,7 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
     x = np.cross(y, u)
     x = x / np.linalg.norm(x)
     z = np.cross(x, y)
-    R = ch_pose_spec(np.array((x, y, z)).T, 0, pose_spec)
+    R = ch_cam_pose_spec(np.array((x, y, z)).T, 0, pose_spec)
     if pose_type == 'w2c':
         R = R.T
         c = -R @ c
@@ -56,7 +61,7 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
 
 
 def gen_elliptical_poses(a, b, theta, h, target=np.zeros(3), n=10, pose_spec=2):
-    """ generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h"""
+    """ generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h """
     poses = []
     for alpha in np.linspace(0, np.pi * 2, num=n, endpoint=False):
         x0 = a * np.cos(alpha)
@@ -69,7 +74,7 @@ def gen_elliptical_poses(a, b, theta, h, target=np.zeros(3), n=10, pose_spec=2):
 
 
 def gen_circular_poses(r, h, target=np.zeros(3), n=10, pose_spec=2):
-    """ generate n poses (c2w) distributed along a circle of radius r at height h"""
+    """ generate n poses (c2w) distributed along a circle of radius r at height h """
     return gen_elliptical_poses(r, r, 0, h, target=target, n=n, pose_spec=pose_spec)
 
 
@@ -145,12 +150,12 @@ def img_cat(imgs, axis, interval=0, color=255):
 
 
 def draw_pt(img, pt, K, pose=None, pose_spec=2, pose_type='c2w', radius=10, color=(160, 160, 160), thickness=-1):
-    """Draw a point specified in world coordinates on a calibrated image."""
+    """ Draw a point specified in world coordinates on a calibrated image. """
     if pose is None:
-        pose = np.identity(4)
+        pose = np.eye(4)
     elif pose_type == 'c2w':
         pose = np.linalg.inv(pose)
-    pose = ch_pose_spec(pose, pose_spec, 1, pose_type='w2c')
+    pose = ch_cam_pose_spec(pose, pose_spec, 1, pose_type='w2c')
     pt_cam = pose @ complete_vecs(pt)
     pt_img = (K @ pt_cam[:3] / pt_cam[2])[:2, 0]
     cv2.circle(img, pt_img.astype(int), radius, color, thickness=thickness)
@@ -171,7 +176,20 @@ def to_np_image(img):
 
 
 def put_texts(img, txts, x0=10, y0=10, dy=10, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
+    if img.shape[2] == 4 and len(color) < 4:
+        color = np.append(np.full(3, color), 255).tolist()
     for txt in txts:
         (_, h), b = cv2.getTextSize(txt, font_face, font_scale, thickness)
         cv2.putText(img, txt, (x0, y0 + h), font_face, font_scale, color, thickness=thickness)
         y0 += h + b + dy
+
+
+def pad_imgs(imgs, color=(0, 0, 0)):
+    h_max, w_max = np.array([img.shape[:2] for img in imgs]).max(axis=0)
+    return [cv2.copyMakeBorder(img, (h_max - img.shape[0]) // 2, -((img.shape[0] - h_max) // 2), (w_max - img.shape[1]) // 2, -((img.shape[1] - w_max) // 2), cv2.BORDER_CONSTANT, value=color) for img in imgs]
+
+
+def colorize_depth(depth, colormap='viridis', **kwargs):
+    normalized_depth = Normalize(**kwargs)(depth)
+    colorized_depth = plt.get_cmap(colormap)(normalized_depth)
+    return (colorized_depth[..., :3] * 255).astype(np.uint8)
