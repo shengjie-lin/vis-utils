@@ -21,10 +21,10 @@ class Visualizer:
             self.cam_info['height'] = 1080
         self.o3d_vis.create_window(**{cam_param: self.cam_info[cam_param] for cam_param in ('width', 'height')}, visible=visible)
         self.view_ctrl = self.o3d_vis.get_view_control()
-        self.apply_cam_info()
         self.o3d_vis.get_render_option().point_size = pt_size
         if frame_scale:
             self.o3d_vis.add_geometry(o3d.geometry.TriangleMesh.create_coordinate_frame(size=frame_scale))
+        self.apply_cam_info()
 
     def add_trajectory(self, *poses, pose_spec=2, pose_type='c2w', K_invs=None, ws=None, hs=None, cam_size=1, line_width=None, color=(0.5, 0.5, 0.5), connect_cams=False):
         """ pose_spec:
@@ -78,22 +78,28 @@ class Visualizer:
             lm = LineMesh(points, lines, colors, radius=line_width / 2)
             self.o3d_vis.add_geometry(lm.geom)
 
-    def add_points(self, pts, color=(0.5, 0, 0.5)):
+    def add_points(self, pts, color=(0.5, 0, 0.5), force_cam_info=False):
         pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(pts))
         pcd.colors = o3d.utility.Vector3dVector(np.broadcast_to(color, (len(pts), 3)))
         self.o3d_vis.add_geometry(pcd)
+        if force_cam_info:
+            self.apply_cam_info()
 
-    def add_point_cloud(self, pcd, color=None):
+    def add_point_cloud(self, pcd, color=None, force_cam_info=False):
         if not isinstance(pcd, o3d.geometry.PointCloud):
             pcd = o3d.io.read_point_cloud(pcd)
         if color is not None:
             pcd.colors = o3d.utility.Vector3dVector(np.broadcast_to(color, (len(pcd.colors), 3)))
         self.o3d_vis.add_geometry(pcd)
+        if force_cam_info:
+            self.apply_cam_info()
 
-    def add_mesh(self, mesh):
+    def add_mesh(self, mesh, force_cam_info=False):
         if not isinstance(mesh, o3d.geometry.TriangleMesh):
             mesh = o3d.io.read_triangle_mesh(mesh)
         self.o3d_vis.add_geometry(mesh)
+        if force_cam_info:
+            self.apply_cam_info()
 
     def apply_cam_info(self, cam_info=None):
         f = False

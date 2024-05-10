@@ -60,10 +60,14 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
     return np.concatenate((R, c[:, None]), axis=1, dtype=np.float32)
 
 
-def gen_elliptical_poses(a, b, theta, h, target=np.zeros(3), n=10, pose_spec=2):
+def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), n=10, pose_spec=2):
     """ generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h """
+    if azimuth_lo is None:
+        azimuth_lo = 0
+    if azimuth_hi is None:
+        azimuth_hi = np.pi * 2
     poses = []
-    for alpha in np.linspace(0, np.pi * 2, num=n, endpoint=False):
+    for alpha in np.linspace(azimuth_lo, azimuth_hi, num=n, endpoint=(azimuth_hi - azimuth_lo) % (np.pi * 2)):
         x0 = a * np.cos(alpha)
         y0 = b * np.sin(alpha)
         x = x0 * np.cos(theta) - y0 * np.sin(theta)
@@ -73,18 +77,18 @@ def gen_elliptical_poses(a, b, theta, h, target=np.zeros(3), n=10, pose_spec=2):
     return poses
 
 
-def gen_circular_poses(r, h, target=np.zeros(3), n=10, pose_spec=2):
+def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), n=10, pose_spec=2):
     """ generate n poses (c2w) distributed along a circle of radius r at height h """
-    return gen_elliptical_poses(r, r, 0, h, target=target, n=n, pose_spec=pose_spec)
+    return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, n=n, pose_spec=pose_spec)
 
 
-def gen_hemispheric_poses(r, gamma_lo, gamma_hi=None, target=np.zeros(3), m=3, n=10, pose_spec=2):
+def gen_hemispheric_poses(r, gamma_lo, gamma_hi=None, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), m=3, n=10, pose_spec=2):
     if gamma_hi is None:
         gamma_hi = gamma_lo
         gamma_lo = 0
     c2ws = []
     for g in np.linspace(gamma_lo, gamma_hi, num=m):
-        c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), target=target, n=n, pose_spec=pose_spec))
+        c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, n=n, pose_spec=pose_spec))
     return c2ws
 
 
@@ -193,3 +197,25 @@ def colorize_depth(depth, colormap='viridis', **kwargs):
     normalized_depth = Normalize(**kwargs)(depth)
     colorized_depth = plt.get_cmap(colormap)(normalized_depth)
     return (colorized_depth[..., :3] * 255).astype(np.uint8)
+
+
+def normalize_vecs(vecs, axis=-1):
+    norms = np.linalg.norm(vecs, axis=axis, keepdims=True)
+    return vecs / norms, norms[..., 0]
+
+
+def pose_lerp(G0, G1, ts, pose_type='o2w'):
+    """ Linearly interpolate/extrapolate from two poses. """
+    if pose_type.startswith('w2'):
+        G0, G1 = np.linalg.inv(G0), np.linalg.inv(G1)
+    G10 = np.linalg.inv(G0) @ G1
+    R10, t10 = G10[:3, :3], G10[:3, 3]
+    R10 = Rotation.from_matrix(R10).as_rotvec()
+    ts = np.asarray(ts)[..., None]
+    Rt0 = Rotation.from_rotvec(R10 * ts).as_matrix()
+    tt0 = t10 * ts
+    Gt0 = complete_trans(np.concatenate((Rt0, tt0[..., None]), axis=-1))
+    Gt = G0 @ Gt0
+    if pose_type.startswith('w2'):
+        return np.linalg.inv(Gt)
+    return Gt
