@@ -31,7 +31,7 @@ def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
                     (0, 1, 0, 0),
                     (0, 0, 0, 1))), dtype=T.dtype)
     s = T.shape[-2:]
-    T = complete_trans(T)
+    T = complete_transform(T)
     return (T @ np.linalg.inv(Ts[src]) @ Ts[tgt] if pose_type == 'c2w' else np.linalg.inv(Ts[tgt]) @ Ts[src] @ T)[..., :s[0], :s[1]]
 
 
@@ -104,7 +104,7 @@ def complete_vecs(vecs, val=1):
     return torch.cat((vecs, torch.full((*s[:-2], 1, 1), val, dtype=vecs.dtype, device=vecs.device)), dim=-2)
 
 
-def complete_trans(T):
+def complete_transform(T):
     """ completes T to be (..., 4, 4) """
     s = T.shape
     if s[-2:] == (4, 4):
@@ -214,7 +214,7 @@ def pose_lerp(G0, G1, ts, pose_type='o2w'):
     ts = np.asarray(ts)[..., None]
     Rt0 = Rotation.from_rotvec(R10 * ts).as_matrix()
     tt0 = t10 * ts
-    Gt0 = complete_trans(np.concatenate((Rt0, tt0[..., None]), axis=-1))
+    Gt0 = complete_transform(np.concatenate((Rt0, tt0[..., None]), axis=-1))
     Gt = G0 @ Gt0
     if pose_type.startswith('w2'):
         return np.linalg.inv(Gt)
