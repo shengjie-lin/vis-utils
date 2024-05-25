@@ -31,7 +31,7 @@ def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
                     (0, 1, 0, 0),
                     (0, 0, 0, 1))), dtype=T.dtype)
     s = T.shape[-2:]
-    T = complete_transform(T)
+    T = complete_transforms(T)
     return (T @ np.linalg.inv(Ts[src]) @ Ts[tgt] if pose_type == 'c2w' else np.linalg.inv(Ts[tgt]) @ Ts[src] @ T)[..., :s[0], :s[1]]
 
 
@@ -93,7 +93,7 @@ def gen_hemispheric_poses(r, gamma_lo, gamma_hi=None, azimuth_lo=None, azimuth_h
 
 
 def complete_vecs(vecs, val=1):
-    """ completes pts to be (..., 4, 1) """
+    """ completes vecs to be (..., 4, 1) """
     if vecs.shape[-1] != 1:
         vecs = vecs[..., None]
     s = vecs.shape
@@ -104,7 +104,7 @@ def complete_vecs(vecs, val=1):
     return torch.cat((vecs, torch.full((*s[:-2], 1, 1), val, dtype=vecs.dtype, device=vecs.device)), dim=-2)
 
 
-def complete_transform(T):
+def complete_transforms(T):
     """ completes T to be (..., 4, 4) """
     s = T.shape
     if s[-2:] == (4, 4):
@@ -214,7 +214,7 @@ def pose_lerp(G0, G1, ts, pose_type='o2w'):
     ts = np.asarray(ts)[..., None]
     Rt0 = Rotation.from_rotvec(R10 * ts).as_matrix()
     tt0 = t10 * ts
-    Gt0 = complete_transform(np.concatenate((Rt0, tt0[..., None]), axis=-1))
+    Gt0 = complete_transforms(np.concatenate((Rt0, tt0[..., None]), axis=-1))
     Gt = G0 @ Gt0
     if pose_type.startswith('w2'):
         return np.linalg.inv(Gt)
