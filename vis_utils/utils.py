@@ -82,12 +82,12 @@ def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3
     return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, n=n, pose_spec=pose_spec)
 
 
-def gen_hemispheric_poses(r, gamma_lo, gamma_hi=None, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), m=3, n=10, pose_spec=2):
-    if gamma_hi is None:
-        gamma_hi = gamma_lo
-        gamma_lo = 0
+def gen_hemispheric_poses(r, elevation_lo, elevation_hi=None, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), m=3, n=10, pose_spec=2):
+    if elevation_hi is None:
+        elevation_hi = elevation_lo
+        elevation_lo = 0
     c2ws = []
-    for g in np.linspace(gamma_lo, gamma_hi, num=m):
+    for g in np.linspace(elevation_lo, elevation_hi, num=m):
         c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, n=n, pose_spec=pose_spec))
     return c2ws
 
