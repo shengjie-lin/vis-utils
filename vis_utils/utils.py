@@ -92,6 +92,27 @@ def gen_hemispheric_poses(r, elevation_lo, elevation_hi=None, azimuth_lo=None, a
     return c2ws
 
 
+def gen_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth_hi, roll_lo, roll_hi, G_box, s_box, n, u=None, pose_spec=2, pose_type='c2w'):
+    """
+    G_box: the pose of the target box in world coordinates. The origin of the box is at its center.
+    s_box: the scale of the target box in world units.
+    """
+    c2ws = []
+    for _ in range(n):
+        r = np.random.uniform(r_lo, r_hi)
+        e = np.random.uniform(elevation_lo, elevation_hi)
+        a = np.random.uniform(azimuth_lo, azimuth_hi)
+        c = np.array((r * np.cos(e) * np.cos(a), r * np.cos(e) * np.sin(a), r * np.sin(e)))
+        t = np.random.uniform(low=-0.5, high=0.5, size=3)
+        t = (G_box @ complete_vecs(s_box * t))[:3, 0]
+        roll = np.random.uniform(roll_lo, roll_hi)
+        if u is None:
+            u = np.array((0, 0, 1))
+        u = Rotation.from_rotvec(normalize_vecs(t - c)[0] * roll).apply(u)
+        c2ws.append(gen_lookat_pose(c, t, u=u, pose_spec=pose_spec, pose_type=pose_type))
+    return c2ws
+
+
 def complete_vecs(vecs, val=1):
     """ completes vecs to be (..., 4, 1) """
     if vecs.shape[-1] != 1:
