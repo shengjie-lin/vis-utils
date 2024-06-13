@@ -97,6 +97,8 @@ def gen_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth
     G_box: the pose of the target box in world coordinates. The origin of the box is at its center.
     s_box: the scale of the target box in world units.
     """
+    if u is None:
+        u = np.array((0, 0, 1))
     c2ws = []
     for _ in range(n):
         r = np.random.uniform(r_lo, r_hi)
@@ -106,10 +108,8 @@ def gen_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth
         t = np.random.uniform(low=-0.5, high=0.5, size=3)
         t = (G_box @ complete_vecs(s_box * t))[:3, 0]
         roll = np.random.uniform(roll_lo, roll_hi)
-        if u is None:
-            u = np.array((0, 0, 1))
-        u = Rotation.from_rotvec(normalize_vecs(t - c)[0] * roll).apply(u)
-        c2ws.append(gen_lookat_pose(c, t, u=u, pose_spec=pose_spec, pose_type=pose_type))
+        u_rolled = Rotation.from_rotvec(normalize_vecs(t - c)[0] * roll).apply(u)
+        c2ws.append(gen_lookat_pose(c, t, u=u_rolled, pose_spec=pose_spec, pose_type=pose_type))
     return c2ws
 
 
@@ -200,13 +200,27 @@ def to_np_image(img):
     return (img.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
 
 
-def put_texts(img, txts, x0=10, y0=10, dy=10, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
+def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
+    if bg is not None:
+        match np.size(bg):
+            case 1:
+                alpha = 0.5
+                bg = np.full(3, bg)
+            case 3:
+                alpha = 0.5
+            case 4:
+                alpha = bg[3] / 255
+                bg = bg[:3]
     if img.shape[2] == 4 and len(color) < 4:
+        if len(color) == 1:
+            color = np.full(3, color)
         color = np.append(np.full(3, color), 255).tolist()
     for txt in txts:
-        (_, h), b = cv2.getTextSize(txt, font_face, font_scale, thickness)
-        cv2.putText(img, txt, (x0, y0 + h), font_face, font_scale, color, thickness=thickness)
-        y0 += h + b + dy
+        (w, h), b = cv2.getTextSize(txt, font_face, font_scale, thickness)
+        if bg is not None:
+            dilute_image(img, y0, y0 + h + b + offset * 2, x0, x0 + w + offset * 2, p=alpha, color=bg)
+        cv2.putText(img, txt, (x0 + offset, y0 + offset + h), font_face, font_scale, color, thickness=thickness)
+        y0 += h + b + offset * 2 + dy
 
 
 def pad_imgs(imgs, color=(0, 0, 0)):
