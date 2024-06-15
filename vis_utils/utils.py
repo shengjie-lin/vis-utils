@@ -201,11 +201,11 @@ def dilute_image(img, *args, color=(255, 255, 255), alpha=128):
 
 
 def blend_images(rgb_fg, a_fg, rgb_bg, a_bg):
-    rgb_fg = np.asarray(rgb_fg).astype(int)
+    rgb_fg = np.asarray(rgb_fg, dtype=int)
     a_fg = np.asarray(a_fg)
     if a_fg.ndim == rgb_fg.ndim:
         a_fg = a_fg.squeeze(axis=-1)
-    rgb_bg = np.asarray(rgb_bg).astype(int)
+    rgb_bg = np.asarray(rgb_bg, dtype=int)
     a_bg = np.asarray(a_bg)
     if a_bg.ndim == rgb_bg.ndim:
         a_bg = a_bg.squeeze(axis=-1)
