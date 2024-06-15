@@ -186,12 +186,33 @@ def draw_pt(img, pt, K, pose=None, pose_spec=2, pose_type='c2w', radius=10, colo
     cv2.circle(img, pt_img.astype(int), radius, color, thickness=thickness)
 
 
-def dilute_image(img, *args, p=0.5, color=(255, 255, 255)):
+def dilute_image(img, *args, color=(255, 255, 255), alpha=128):
     if len(args) == 4:
         t, b, l, r = args
-        img[t:b, l:r] = (1 - p) * img[t:b, l:r] + p * np.asarray(color)
+        if img.shape[2] == 3:
+            img[t:b, l:r] = blend_images(color, alpha, img[t:b, l:r], 255)[0]
+        else:
+            img[t:b, l:r, :3], img[t:b, l:r, 3] = blend_images(color, alpha, img[t:b, l:r, :3], img[t:b, l:r, 3])
     elif len(args) == 1:
-        img[args] = (1 - p) * img[args] + p * np.asarray(color)
+        if img.shape[2] == 3:
+            img[args] = blend_images(color, alpha, img[args], 255)[0]
+        else:
+            img[args, :3], img[args, 3] = blend_images(color, alpha, img[args, :3], img[args, 3])
+
+
+def blend_images(rgb_fg, a_fg, rgb_bg, a_bg):
+    rgb_fg = np.asarray(rgb_fg).astype(int)
+    a_fg = np.asarray(a_fg)
+    if a_fg.ndim == rgb_fg.ndim:
+        a_fg = a_fg.squeeze(axis=-1)
+    rgb_bg = np.asarray(rgb_bg).astype(int)
+    a_bg = np.asarray(a_bg)
+    if a_bg.ndim == rgb_bg.ndim:
+        a_bg = a_bg.squeeze(axis=-1)
+    t = 1 - a_fg / 255
+    a = a_fg + a_bg * t
+    rgb = (rgb_fg * a_fg[..., None] + rgb_bg * a_bg[..., None] * t) / a[..., None]
+    return rgb.astype(np.uint8), a.astype(np.uint8)
 
 
 def to_np_image(img):
@@ -204,21 +225,23 @@ def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.F
     if bg is not None:
         match np.size(bg):
             case 1:
-                alpha = 0.5
+                alpha = 128
                 bg = np.full(3, bg)
             case 3:
-                alpha = 0.5
+                alpha = 128
             case 4:
-                alpha = bg[3] / 255
+                alpha = bg[3]
                 bg = bg[:3]
+    color = np.asarray(color)
+    if np.size(color) == 1:
+        color = np.broadcast_to(color, 3)
     if img.shape[2] == 4 and len(color) < 4:
-        if len(color) == 1:
-            color = np.full(3, color)
-        color = np.append(np.full(3, color), 255).tolist()
+        color = np.append(color, 255)
+    color = color.tolist()
     for txt in txts:
         (w, h), b = cv2.getTextSize(txt, font_face, font_scale, thickness)
         if bg is not None:
-            dilute_image(img, y0, y0 + h + b + offset * 2, x0, x0 + w + offset * 2, p=alpha, color=bg)
+            dilute_image(img, y0, y0 + h + b + offset * 2, x0, x0 + w + offset * 2, color=bg, alpha=alpha)
         cv2.putText(img, txt, (x0 + offset, y0 + offset + h), font_face, font_scale, color, thickness=thickness)
         y0 += h + b + offset * 2 + dy
 
