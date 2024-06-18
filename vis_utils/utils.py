@@ -60,7 +60,7 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
     return np.concatenate((R, c[:, None]), axis=1, dtype=np.float32)
 
 
-def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), n=10, pose_spec=2):
+def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), up=None, n=10, pose_spec=2):
     """ generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h """
     if azimuth_lo is None:
         azimuth_lo = 0
@@ -73,22 +73,22 @@ def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, targe
         x = x0 * np.cos(theta) - y0 * np.sin(theta)
         y = y0 * np.cos(theta) + x0 * np.sin(theta)
         z = h
-        poses.append(gen_lookat_pose(np.array((x, y, z)), target, pose_spec=pose_spec))
+        poses.append(gen_lookat_pose(np.array((x, y, z)), target, u=up, pose_spec=pose_spec))
     return poses
 
 
-def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), n=10, pose_spec=2):
+def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), up=None, n=10, pose_spec=2):
     """ generate n poses (c2w) distributed along a circle of radius r at height h """
-    return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, n=n, pose_spec=pose_spec)
+    return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec)
 
 
-def gen_hemispheric_poses(r, elevation_lo, elevation_hi=None, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), m=3, n=10, pose_spec=2):
+def gen_hemispheric_poses(r, elevation_lo, elevation_hi=None, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), up=None, m=3, n=10, pose_spec=2):
     if elevation_hi is None:
         elevation_hi = elevation_lo
         elevation_lo = 0
     c2ws = []
     for g in np.linspace(elevation_lo, elevation_hi, num=m):
-        c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, n=n, pose_spec=pose_spec))
+        c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec))
     return c2ws
 
 
