@@ -139,13 +139,15 @@ def homogenize_transforms(T):
 def decompose_sim3(T):
     """ T: (..., 4, 4) """
     if isinstance(T, np.ndarray):
-        G = T.copy()
-        s = np.linalg.det(G[..., :3, :3])**(1 / 3)
+        P = T.copy()
+        s = np.linalg.norm(P[..., :3], axis=-2)
+        S = np.stack([np.diag((*s_, 1)) for s_ in s])
     else:
-        G = T.clone()
-        s = torch.linalg.det(G[..., :3, :3])**(1 / 3)
-    G[..., :3, :3] /= s[..., None, None]
-    return G, s
+        P = T.clone()
+        s = torch.linalg.norm(P[..., :3], dim=-2)
+        S = torch.diag_embed(torch.cat((s, torch.ones((*s.shape[:-1], 1)).to(s)), dim=-1))
+    P[..., :3, :3] /= s[..., None, :]
+    return P, S
 
 
 def compute_trans_diff(T1, T2):
@@ -238,12 +240,15 @@ def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.F
     if img.shape[2] == 4 and len(color) < 4:
         color = np.append(color, 255)
     color = color.tolist()
+    if isinstance(txts, str):
+        txts = (txts,)
     for txt in txts:
         (w, h), b = cv2.getTextSize(txt, font_face, font_scale, thickness)
         if bg is not None:
             dilute_image(img, y0, y0 + h + b + offset * 2, x0, x0 + w + offset * 2, color=bg, alpha=alpha)
         cv2.putText(img, txt, (x0 + offset, y0 + offset + h), font_face, font_scale, color, thickness=thickness)
         y0 += h + b + offset * 2 + dy
+    return img
 
 
 def pad_imgs(imgs, color=(0, 0, 0)):
@@ -277,3 +282,7 @@ def pose_lerp(G0, G1, ts, pose_type='o2w'):
     if pose_type.startswith('w2'):
         return np.linalg.inv(Gt)
     return Gt
+
+
+def vid_cmp(vid0, vid1, annotations, color=(240, 0, 0)):
+    return [img_cat((put_texts(img0, annotations[0], color=color), put_texts(img1, annotations[1], color=color)), axis=1) for img0, img1 in zip(vid0, vid1)]
