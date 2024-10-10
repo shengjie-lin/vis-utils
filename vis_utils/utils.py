@@ -1,8 +1,10 @@
 from datetime import datetime
+from io import BytesIO
 
 import cv2
 import numpy as np
 import torch
+from imageio.v3 import imread
 from matplotlib import pyplot as plt
 from matplotlib.colors import Normalize
 from scipy.spatial.transform import Rotation
@@ -217,10 +219,24 @@ def blend_images(rgb_fg, a_fg, rgb_bg, a_bg):
     return rgb.astype(np.uint8), a.astype(np.uint8)
 
 
-def to_np_image(img):
+def to_np_img(img):
+    if isinstance(img, torch.Tensor):
+        if img.shape[0] <= 4:
+            img = img.permute(1, 2, 0)
+        img = img.cpu().numpy()
+    if img.dtype != np.uint8:
+        img = (img * 255).astype(np.uint8)
+    return img
+
+
+def to_pt_img(img, channel_first=False, device='cuda'):
     if isinstance(img, np.ndarray):
-        return img
-    return (img.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+        if channel_first and img.shape[-1] <= 4:
+            img = img.transpose(2, 0, 1)
+        img = torch.from_numpy(img).to(device)
+    if img.dtype == torch.uint8:
+        img = img.float() / 255
+    return img
 
 
 def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
@@ -284,5 +300,16 @@ def pose_lerp(G0, G1, ts, pose_type='o2w'):
     return Gt
 
 
-def vid_cmp(vid0, vid1, annotations, color=(240, 0, 0)):
-    return [img_cat((put_texts(img0, annotations[0], color=color), put_texts(img1, annotations[1], color=color)), axis=1) for img0, img1 in zip(vid0, vid1)]
+def vid_cmp(vids, axis, annotations=None, color=(240, 0, 0)):
+    if annotations is None:
+        annotations = [''] * len(vids)
+    return [img_cat([put_texts(img, annotation, color=color) for img, annotation in zip(imgs, annotations)], axis) for imgs in zip(*vids)]
+
+
+def plt2img(axis_off=False):
+    if axis_off:
+        plt.axis('off')
+    with BytesIO() as buffer:
+        plt.savefig(buffer, bbox_inches='tight', pad_inches=0)
+        plt.close()
+        return imread(buffer)

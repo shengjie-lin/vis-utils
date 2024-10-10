@@ -3,7 +3,9 @@ name = "vis-utils"
 version = "0.1.0"
 
 dependencies=[
+    "imageio",
     "matplotlib",
+    "numpy==1.*",
     "open3d",
     "opencv-python",
     "scipy",
