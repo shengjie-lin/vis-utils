@@ -19,6 +19,7 @@ def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
             0: x->right, y->front, z->up
             1: x->right, y->down, z->front
             2: x->right, y->up, z->back
+            3: x->front, y->left, z->up
         pose_type:
             'c2w': camera to world, where world can refer to any frame
             'w2c': world to camera """
@@ -31,6 +32,10 @@ def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
                    ((1, 0, 0, 0),
                     (0, 0, -1, 0),
                     (0, 1, 0, 0),
+                    (0, 0, 0, 1)),
+                   ((0, -1, 0, 0),
+                    (1, 0, 0, 0),
+                    (0, 0, 1, 0),
                     (0, 0, 0, 1))), dtype=T.dtype)
     s = T.shape[-2:]
     T = homogenize_transforms(T)
@@ -46,7 +51,7 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
             0: x->right, y->front, z->up
             1: x->right, y->down, z->front
             2: x->right, y->up, z->back
-        we assume world frame spec is 0
+            3: x->front, y->left, z->up
         pose_type: one of {'c2w', 'w2c'} """
     if u is None:
         u = np.array((0, 0, 1))
@@ -62,12 +67,14 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
     return np.concatenate((R, c[:, None]), axis=1, dtype=np.float32)
 
 
-def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), up=None, n=10, pose_spec=2):
+def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, target=None, up=None, n=10, pose_spec=2):
     """ generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h """
     if azimuth_lo is None:
         azimuth_lo = 0
     if azimuth_hi is None:
         azimuth_hi = np.pi * 2
+    if target is None:
+        target = np.zeros(3)
     poses = []
     for alpha in np.linspace(azimuth_lo, azimuth_hi, num=n, endpoint=(azimuth_hi - azimuth_lo) % (np.pi * 2)):
         x0 = a * np.cos(alpha)
@@ -79,22 +86,31 @@ def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, targe
     return poses
 
 
-def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), up=None, n=10, pose_spec=2):
+def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=None, up=None, n=10, pose_spec=2):
     """ generate n poses (c2w) distributed along a circle of radius r at height h """
     return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec)
 
 
-def gen_hemispheric_poses(r, elevation_lo, elevation_hi=None, azimuth_lo=None, azimuth_hi=None, target=np.zeros(3), up=None, m=3, n=10, pose_spec=2):
-    if elevation_hi is None:
-        elevation_hi = elevation_lo
-        elevation_lo = 0
+def gen_spheric_poses(r, elevation_lo, elevation_hi, azimuth_lo=None, azimuth_hi=None, target=None, up=None, m=3, n=10, pose_spec=2):
     c2ws = []
     for g in np.linspace(elevation_lo, elevation_hi, num=m):
         c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec))
     return c2ws
 
 
-def gen_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth_hi, roll_lo, roll_hi, G_box, s_box, n, u=None, pose_spec=2, pose_type='c2w'):
+def gen_spheric_spiral_poses(r, elevation_lo, elevation_hi, start, end, target=None, up=None, n=10, pose_spec=2):
+    assert n > 1
+    if target is None:
+        target = np.zeros(3)
+    c2ws = []
+    for i in range(n):
+        elevation = elevation_lo + (elevation_hi - elevation_lo) * i / (n - 1)
+        azimuth = (start + (end - start) * i / (n - 1)) * np.pi * 2
+        c2ws.append(gen_lookat_pose(np.array((r * np.cos(elevation) * np.cos(azimuth), r * np.cos(elevation) * np.sin(azimuth), r * np.sin(elevation))), target, u=up, pose_spec=pose_spec))
+    return c2ws
+
+
+def gen_spheric_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth_hi, roll_lo, roll_hi, G_box, s_box, n, u=None, pose_spec=2, pose_type='c2w'):
     """
     G_box: the pose of the target box in world coordinates. The origin of the box is at its center.
     s_box: the scale of the target box in world units.
