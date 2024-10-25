@@ -91,14 +91,14 @@ def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=None, up=N
     return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec)
 
 
-def gen_spheric_poses(r, elevation_lo, elevation_hi, azimuth_lo=None, azimuth_hi=None, target=None, up=None, m=3, n=10, pose_spec=2):
+def gen_spherical_poses(r, elevation_lo, elevation_hi, azimuth_lo=None, azimuth_hi=None, target=None, up=None, m=3, n=10, pose_spec=2):
     c2ws = []
     for g in np.linspace(elevation_lo, elevation_hi, num=m):
         c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec))
     return c2ws
 
 
-def gen_spheric_spiral_poses(r, elevation_lo, elevation_hi, start, end, target=None, up=None, n=10, pose_spec=2):
+def gen_spherical_spiral_poses(r, elevation_lo, elevation_hi, start, end, target=None, up=None, n=10, pose_spec=2):
     assert n > 1
     if target is None:
         target = np.zeros(3)
@@ -110,7 +110,7 @@ def gen_spheric_spiral_poses(r, elevation_lo, elevation_hi, start, end, target=N
     return c2ws
 
 
-def gen_spheric_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth_hi, roll_lo, roll_hi, G_box, s_box, n, u=None, pose_spec=2, pose_type='c2w'):
+def gen_spherical_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth_hi, roll_lo, roll_hi, G_box, s_box, n, u=None, pose_spec=2, pose_type='c2w'):
     """
     G_box: the pose of the target box in world coordinates. The origin of the box is at its center.
     s_box: the scale of the target box in world units.
