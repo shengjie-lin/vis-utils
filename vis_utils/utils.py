@@ -148,34 +148,39 @@ def homogenize_transforms(T):
     s = T.shape
     if s[-2:] == (4, 4):
         return T
-    T_comp = np.zeros((*s[:-2], 4, 4), dtype=T.dtype) if isinstance(T, np.ndarray) else torch.zeros(*s[:-2], 4, 4, dtype=T.dtype, device=T.device)
-    T_comp[..., :3, :s[-1]] = T
-    T_comp[..., 3, 3] = 1
-    return T_comp
+    T_h = np.zeros((*s[:-2], 4, 4), dtype=T.dtype) if isinstance(T, np.ndarray) else torch.zeros(*s[:-2], 4, 4, dtype=T.dtype, device=T.device)
+    T_h[..., :3, :s[-1]] = T
+    T_h[..., 3, 3] = 1
+    return T_h
 
 
 def decompose_sim3(T):
     """ T: (..., 4, 4) """
-    if isinstance(T, np.ndarray):
-        P = T.copy()
-        s = np.linalg.norm(P[..., :3], axis=-2)
-        S = np.stack([np.diag((*s_, 1)) for s_ in s])
-    else:
-        P = T.clone()
-        s = torch.linalg.norm(P[..., :3], dim=-2)
-        S = torch.diag_embed(torch.cat((s, torch.ones((*s.shape[:-1], 1)).to(s)), dim=-1))
+    is_np = isinstance(T, np.ndarray)
+    if is_np:
+        T = torch.from_numpy(T)
+    P = T.clone()
+    s = torch.linalg.norm(P[..., :3], dim=-2)
     P[..., :3, :3] /= s[..., None, :]
+    S = torch.diag_embed(torch.cat((s, torch.ones((*s.shape[:-1], 1)).to(s)), dim=-1))
+    if is_np:
+        return P.numpy(), S.numpy()
     return P, S
 
 
-def compute_trans_diff(T1, T2):
+def compute_trans_diff(T1, T2, is_sim3=False):
     T = T2 @ np.linalg.inv(T1)
-    G, s = decompose_sim3(T)
-    R = Rotation.from_matrix(G[:3, :3])
-    r = np.linalg.norm(R.as_rotvec()) / np.pi * 180
-    t = np.linalg.norm(G[:3, 3])
-    s = np.abs(np.log(s))
-    return r, t, s
+    if is_sim3:
+        P, S = decompose_sim3(T)
+        R = Rotation.from_matrix(P[:3, :3])
+        r = np.linalg.norm(R.as_rotvec(degrees=True))
+        t = np.linalg.norm(P[:3, 3])
+        s = np.abs(np.log(S.diagonal()[:-1])).mean()
+        return r, t, s
+    R = Rotation.from_matrix(T[:3, :3])
+    r = np.linalg.norm(R.as_rotvec(degrees=True))
+    t = np.linalg.norm(T[:3, 3])
+    return r, t
 
 
 def avg_trans(Ts, s=None, avg_func=np.mean):
@@ -185,7 +190,7 @@ def avg_trans(Ts, s=None, avg_func=np.mean):
     return T
 
 
-def img_cat(imgs, axis, interval=0, color=255):
+def imgs_cat(imgs, axis, interval=0, color=255):
     assert axis in {0, 1}, 'axis must be either 0 or 1'
     h, w, c = imgs[0].shape
     gap = np.broadcast_to(color, (h, interval, c) if axis else (interval, w, c)).astype(imgs[0].dtype)
@@ -235,24 +240,44 @@ def blend_images(rgb_fg, a_fg, rgb_bg, a_bg):
     return rgb.astype(np.uint8), a.astype(np.uint8)
 
 
-def to_np_img(img):
-    if isinstance(img, torch.Tensor):
-        if img.shape[0] <= 4:
-            img = img.permute(1, 2, 0)
-        img = img.cpu().numpy()
-    if img.dtype != np.uint8:
-        img = (img * 255).astype(np.uint8)
-    return img
+def to_np_color(color):
+    if isinstance(color, torch.Tensor):
+        if color.shape[0] <= 4:
+            color = color.permute(1, 2, 0)
+        color = color.cpu().numpy()
+    if color.dtype != np.uint8:
+        color = (color * 255).astype(np.uint8)
+    return color
 
 
-def to_pt_img(img, channel_first=False, device='cuda'):
-    if isinstance(img, np.ndarray):
-        if channel_first and img.shape[-1] <= 4:
-            img = img.transpose(2, 0, 1)
-        img = torch.from_numpy(img).to(device)
-    if img.dtype == torch.uint8:
-        img = img.float() / 255
-    return img
+def to_pt_color(color, channel_first=False, device='cuda'):
+    if isinstance(color, np.ndarray):
+        if channel_first and color.shape[-1] <= 4:
+            color = color.transpose(2, 0, 1)
+        color = torch.from_numpy(color).to(device)
+    if color.dtype == torch.uint8:
+        color = color.float() / 255
+    return color
+
+
+def to_np_depth(depth):
+    if isinstance(depth, torch.Tensor):
+        if depth.shape[0] == 1:
+            depth = depth.permute(1, 2, 0)
+        depth = depth.squeeze(-1).cpu().numpy()
+    if depth.dtype != np.uint16:
+        depth = (depth * 1000).astype(np.uint16)
+    return depth
+
+
+def to_pt_depth(depth, channel_first=False, device='cuda'):
+    if isinstance(depth, np.ndarray):
+        if channel_first and depth.shape[-1] == 1:
+            depth = depth.transpose(2, 0, 1)
+        depth = torch.from_numpy(depth).to(device)
+    if depth.dtype == torch.uint16:
+        depth = depth.float() / 1000
+    return depth
 
 
 def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
@@ -316,10 +341,10 @@ def pose_lerp(G0, G1, ts, pose_type='o2w'):
     return Gt
 
 
-def vid_cmp(vids, axis, annotations=None, color=(240, 0, 0)):
+def vids_cat(vids, axis, annotations=None, color=(240, 0, 0)):
     if annotations is None:
         annotations = [''] * len(vids)
-    return [img_cat([put_texts(img, annotation, color=color) for img, annotation in zip(imgs, annotations)], axis) for imgs in zip(*vids)]
+    return [imgs_cat([put_texts(img, annotation, color=color) for img, annotation in zip(imgs, annotations)], axis) for imgs in zip(*vids)]
 
 
 def plt2img(axis_off=False):
