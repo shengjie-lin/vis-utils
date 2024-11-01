@@ -1,5 +1,6 @@
 from datetime import datetime
 from io import BytesIO
+from shutil import rmtree
 
 import cv2
 import numpy as np
@@ -12,6 +13,11 @@ from scipy.spatial.transform import Rotation
 
 def get_cur_timestamp():
     return datetime.now().strftime('%m-%d_%H-%M-%S')
+
+
+def reset_dir(dir):
+    rmtree(dir, ignore_errors=True)
+    dir.mkdir(parents=True)
 
 
 def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
