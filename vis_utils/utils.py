@@ -20,6 +20,13 @@ def reset_dir(dir):
     dir.mkdir(parents=True)
 
 
+def angle(v1, v2):
+    # https://people.eecs.berkeley.edu/~wkahan/Mindless.pdf#page=46
+    n1 = v1.norm()
+    n2 = v2.norm()
+    return 2 * torch.atan((v1 * n2 - n1 * v2).norm() / (v1 * n2 + n1 * v2).norm())
+
+
 def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
     """ src/tgt spec:
             0: x->right, y->front, z->up
