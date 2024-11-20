@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 from shutil import rmtree
+from typing import Literal
 
 import cv2
 import numpy as np
@@ -367,3 +368,68 @@ def plt2img(axis_off=False):
         plt.savefig(buffer, bbox_inches='tight', pad_inches=0)
         plt.close()
         return imread(buffer)
+
+
+def img_alpha_composite(img, bg=255):
+    assert img.ndim == 3 and img.shape[2] in {3, 4}
+    if img.shape[2] == 3:
+        return img
+    img, alpha = np.split(img, (3,), axis=-1)
+    alpha = alpha / 255
+    return (img * alpha + bg * (1 - alpha)).astype(np.uint8)
+
+
+def img_trim(img, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th=128, make_transparent=False, return_border=False):
+    img = img[..., :3]
+    if keep == 'dark':
+        flags = np.mean(img, 2) < dark_th    # keep dark contents. lower th results in smaller area
+    else:
+        flags = np.mean(img, 2) > light_th    # keep light contents. higher th results in smaller area
+    col_flags = np.any(flags, 0)
+    col_start = next(i for i, flag in enumerate(col_flags) if flag)
+    col_end = next(i for i, flag in zip(reversed(range(len(col_flags))), reversed(col_flags)) if flag) + 1
+    row_flags = np.any(flags, 1)
+    row_start = next(i for i, flag in enumerate(row_flags) if flag)
+    row_end = next(i for i, flag in zip(reversed(range(len(row_flags))), reversed(row_flags)) if flag) + 1
+    if return_border:
+        return row_start, row_end, col_start, col_end
+    if make_transparent:
+        img = np.concatenate((img, flags[..., None].astype(np.uint8) * 255), axis=-1)  # make it transparent
+    return img[row_start:row_end, col_start:col_end]
+
+
+def imgs_trim(imgs, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th=128, target_aspect_ratio=None, allow_landscape=False, allow_portrait=False, pad=0):
+    h, w = imgs[0].shape[:2]
+    if target_aspect_ratio is None:
+        ar = w / h
+    else:
+        ar = target_aspect_ratio
+    t_min, b_max, l_min, r_max = float('inf'), float('-inf'), float('inf'), float('-inf')
+    for img in imgs:
+        t, b, l, r = img_trim(img, keep=keep, dark_th=dark_th, light_th=light_th, return_border=True)
+        t_min = min(t_min, t)
+        b_max = max(b_max, b)
+        l_min = min(l_min, l)
+        r_max = max(r_max, r)
+    h_cur, w_cur = b_max - t_min, r_max - l_min
+    ar_cur = (r_max - l_min) / (b_max - t_min)
+    if ar_cur < ar and not allow_portrait:
+        w_new = round(h_cur * ar)
+        diff = w_new - w_cur
+        l_min -= diff // 2
+        r_max += diff // 2
+    elif ar_cur > ar and not allow_landscape:
+        h_new = round(w_cur / ar)
+        diff = h_new - h_cur
+        t_min -= diff // 2
+        b_max += diff // 2
+    t_min, b_max, l_min, r_max = t_min - pad, b_max + pad, l_min - pad, r_max + pad
+    if t_min < 0:
+        t_min, b_max = 0, b_max - t_min
+    elif b_max > h:
+        t_min, b_max = t_min - b_max + h, h
+    if l_min < 0:
+        l_min, r_max = 0, r_max - l_min
+    elif r_max > w:
+        l_min, r_max = l_min - r_max + w, w
+    return [img[t_min:b_max, l_min:r_max] for img in imgs]
