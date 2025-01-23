@@ -398,7 +398,7 @@ def img_trim(img, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th
     return img[row_start:row_end, col_start:col_end]
 
 
-def imgs_trim(imgs, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th=128, target_aspect_ratio=None, allow_landscape=False, allow_portrait=False, pad=0):
+def imgs_trim(imgs, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th=128, target_aspect_ratio=None, allow_landscape=False, allow_portrait=False, pad=0, return_border=False):
     h, w = imgs[0].shape[:2]
     if target_aspect_ratio is None:
         ar = w / h
@@ -432,4 +432,6 @@ def imgs_trim(imgs, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_
         l_min, r_max = 0, r_max - l_min
     elif r_max > w:
         l_min, r_max = l_min - r_max + w, w
+    if return_border:
+        return t_min, b_max, l_min, r_max
     return [img[t_min:b_max, l_min:r_max] for img in imgs]
