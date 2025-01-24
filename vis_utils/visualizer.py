@@ -5,7 +5,7 @@ import numpy as np
 import open3d as o3d
 
 from vis_utils.line_mesh import LineMesh
-from vis_utils.utils import ch_cam_pose_spec
+from vis_utils.utils import ch_cam_pose_spec, to_np_color, to_np_depth
 
 
 class Visualizer:
@@ -15,22 +15,23 @@ class Visualizer:
         self.cam_info = defaultdict(lambda: None)
         if cam_info:
             self.cam_info.update(cam_info)
-        if self.cam_info['width'] is None:
-            self.cam_info['width'] = 1920
-        if self.cam_info['height'] is None:
-            self.cam_info['height'] = 1080
-        self.o3d_vis.create_window(**{cam_param: self.cam_info[cam_param] for cam_param in ('width', 'height')}, visible=visible)
+        if self.cam_info["width"] is None:
+            self.cam_info["width"] = 1920
+        if self.cam_info["height"] is None:
+            self.cam_info["height"] = 1080
+        self.o3d_vis.create_window(**{cam_param: self.cam_info[cam_param] for cam_param in ("width", "height")}, visible=visible)
         self.view_ctrl = self.o3d_vis.get_view_control()
-        self.o3d_vis.get_render_option().point_size = pt_size
+        self.render_opt = self.o3d_vis.get_render_option()
+        self.render_opt.point_size = pt_size
         if frame_scale:
             self.o3d_vis.add_geometry(o3d.geometry.TriangleMesh.create_coordinate_frame(size=frame_scale))
         self.apply_cam_info()
 
-    def add_trajectory(self, *poses, pose_spec=2, pose_type='c2w', K_invs=None, ws=None, hs=None, cam_size=1, line_width=None, color=(0.5, 0.5, 0.5), connect_cams=False):
-        """ pose_spec:
-                0: x->right, y->front, z->up
-                1: x->right, y->down, z->front
-                2: x->right, y->up, z->back """
+    def add_trajectory(self, *poses, pose_spec=2, pose_type="c2w", K_invs=None, ws=None, hs=None, cam_size=1, line_width=None, color=(0.5, 0.5, 0.5), connect_cams=False):
+        """pose_spec:
+        0: x->right, y->front, z->up
+        1: x->right, y->down, z->front
+        2: x->right, y->up, z->back"""
         if len(poses) == 1:
             Rs = [pose[:3, :3] for pose in poses[0]]
             ts = [pose[:3, 3] for pose in poses[0]]
@@ -38,9 +39,7 @@ class Visualizer:
             Rs, ts = poses
         n_cams = len(Rs)
         if K_invs is None:
-            K_invs = np.linalg.inv(np.array(((1000, 0, 400),
-                                             (0, 1000, 300),
-                                             (0, 0, 1))))
+            K_invs = np.linalg.inv(np.array(((1000, 0, 400), (0, 1000, 300), (0, 0, 1))))
             ws = 800
             hs = 600
         if np.ndim(K_invs) == 2:
@@ -59,7 +58,7 @@ class Visualizer:
         lines = []
         colors = []
         for i, (R, t) in enumerate(zip(Rs, ts)):
-            if pose_type == 'w2c':
+            if pose_type == "w2c":
                 R = R.T
                 t = -R @ t
             R = ch_cam_pose_spec(R, pose_spec, 1)
@@ -104,18 +103,18 @@ class Visualizer:
     def apply_cam_info(self, cam_info=None):
         f = False
         if cam_info is None:
-            if {'width', 'height', 'fx', 'fy', 'cx', 'cy'}.issubset(self.cam_info):
+            if {"width", "height", "fx", "fy", "cx", "cy"}.issubset(self.cam_info):
                 f = True
             else:
-                logging.warning(f'self.cam_info ({self.cam_info}) is incomplete.')
-        elif {'width', 'height', 'fx', 'fy', 'cx', 'cy'}.issubset(cam_info) and cam_info['width'] == self.cam_info['width'] and cam_info['height'] == self.cam_info['height']:
+                logging.warning(f"self.cam_info ({self.cam_info}) is incomplete.")
+        elif {"width", "height", "fx", "fy", "cx", "cy"}.issubset(cam_info) and cam_info["width"] == self.cam_info["width"] and cam_info["height"] == self.cam_info["height"]:
             self.cam_info.update(cam_info)
             f = True
         else:
-            logging.warning(f'cam_info ({cam_info}) is incomplete or inconsistent.')
+            logging.warning(f"cam_info ({cam_info}) is incomplete or inconsistent.")
         if f:
             cam_params = self.view_ctrl.convert_to_pinhole_camera_parameters()
-            cam_params.intrinsic.set_intrinsics(self.cam_info['width'], self.cam_info['height'], self.cam_info['fx'], self.cam_info['fy'], self.cam_info['cx'] - 0.5, self.cam_info['cy'] - 0.5)
+            cam_params.intrinsic.set_intrinsics(self.cam_info["width"], self.cam_info["height"], self.cam_info["fx"], self.cam_info["fy"], self.cam_info["cx"] - 0.5, self.cam_info["cy"] - 0.5)
             # If not allow_arbitrary, Open3D requires that cx==(w-1)/2 and cy==(h-1)/2.
             self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
 
@@ -125,12 +124,15 @@ class Visualizer:
         # There is a bug in open3d 0.18.0 that we bypass with allow_arbitrary=True.
         self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
 
-    def capture_screen(self, do_render=False):
-        return (np.asarray(self.o3d_vis.capture_screen_float_buffer(do_render=do_render)) * 255).astype(np.uint8)
+    def capture_screen(self, do_render=True):
+        return to_np_color(np.asarray(self.o3d_vis.capture_screen_float_buffer(do_render=do_render)))
+
+    def capture_depth(self, do_render=True):
+        return to_np_depth(np.asarray(self.o3d_vis.capture_depth_float_buffer(do_render=do_render)))
 
     def show(self):
         if not self.visible:
-            logging.error('The visualizer is not set to be visible!')
+            logging.error("The visualizer is not set to be visible!")
             return
         self.o3d_vis.run()
         self.destroy()
@@ -141,6 +143,6 @@ class Visualizer:
         del self.o3d_vis
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     vis = Visualizer(frame_scale=1)
     vis.show()
