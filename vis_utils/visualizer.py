@@ -5,7 +5,7 @@ import numpy as np
 import open3d as o3d
 
 from vis_utils.line_mesh import LineMesh
-from vis_utils.utils import ch_cam_pose_spec, to_np_color, to_np_depth
+from vis_utils.utils import ch_cam_pose_spec
 
 
 class Visualizer:
@@ -19,7 +19,9 @@ class Visualizer:
             self.cam_info["width"] = 1920
         if self.cam_info["height"] is None:
             self.cam_info["height"] = 1080
-        self.o3d_vis.create_window(**{cam_param: self.cam_info[cam_param] for cam_param in ("width", "height")}, visible=visible)
+        self.o3d_vis.create_window(
+            **{cam_param: self.cam_info[cam_param] for cam_param in ("width", "height")}, visible=visible
+        )
         self.view_ctrl = self.o3d_vis.get_view_control()
         self.render_opt = self.o3d_vis.get_render_option()
         self.render_opt.point_size = pt_size
@@ -27,7 +29,19 @@ class Visualizer:
             self.o3d_vis.add_geometry(o3d.geometry.TriangleMesh.create_coordinate_frame(size=frame_scale))
         self.apply_cam_info()
 
-    def add_trajectory(self, *poses, pose_spec=2, pose_type="c2w", K_invs=None, ws=None, hs=None, cam_size=1, line_width=None, color=(0.5, 0.5, 0.5), connect_cams=False):
+    def add_trajectory(
+        self,
+        *poses,
+        pose_spec=2,
+        pose_type="c2w",
+        K_invs=None,
+        ws=None,
+        hs=None,
+        cam_size=1,
+        line_width=None,
+        color=(0.5, 0.5, 0.5),
+        connect_cams=False,
+    ):
         """pose_spec:
         0: x->right, y->front, z->up
         1: x->right, y->down, z->front
@@ -70,7 +84,9 @@ class Visualizer:
             lines.extend(i * 5 + cam_ls)
             colors.extend((color[i],) * len(cam_ls))
         if line_width is None:
-            ls = o3d.geometry.LineSet(points=o3d.utility.Vector3dVector(points), lines=o3d.utility.Vector2iVector(lines))
+            ls = o3d.geometry.LineSet(
+                points=o3d.utility.Vector3dVector(points), lines=o3d.utility.Vector2iVector(lines)
+            )
             ls.colors = o3d.utility.Vector3dVector(colors)
             self.o3d_vis.add_geometry(ls)
         else:
@@ -107,14 +123,25 @@ class Visualizer:
                 f = True
             else:
                 logging.warning(f"self.cam_info ({self.cam_info}) is incomplete.")
-        elif {"width", "height", "fx", "fy", "cx", "cy"}.issubset(cam_info) and cam_info["width"] == self.cam_info["width"] and cam_info["height"] == self.cam_info["height"]:
+        elif (
+            {"width", "height", "fx", "fy", "cx", "cy"}.issubset(cam_info)
+            and cam_info["width"] == self.cam_info["width"]
+            and cam_info["height"] == self.cam_info["height"]
+        ):
             self.cam_info.update(cam_info)
             f = True
         else:
             logging.warning(f"cam_info ({cam_info}) is incomplete or inconsistent.")
         if f:
             cam_params = self.view_ctrl.convert_to_pinhole_camera_parameters()
-            cam_params.intrinsic.set_intrinsics(self.cam_info["width"], self.cam_info["height"], self.cam_info["fx"], self.cam_info["fy"], self.cam_info["cx"] - 0.5, self.cam_info["cy"] - 0.5)
+            cam_params.intrinsic.set_intrinsics(
+                self.cam_info["width"],
+                self.cam_info["height"],
+                self.cam_info["fx"],
+                self.cam_info["fy"],
+                self.cam_info["cx"] - 0.5,
+                self.cam_info["cy"] - 0.5,
+            )
             # If not allow_arbitrary, Open3D requires that cx==(w-1)/2 and cy==(h-1)/2.
             self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
 
@@ -125,10 +152,10 @@ class Visualizer:
         self.view_ctrl.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
 
     def capture_screen(self, do_render=True):
-        return to_np_color(np.asarray(self.o3d_vis.capture_screen_float_buffer(do_render=do_render)))
+        return np.asarray(self.o3d_vis.capture_screen_float_buffer(do_render=do_render))
 
     def capture_depth(self, do_render=True):
-        return to_np_depth(np.asarray(self.o3d_vis.capture_depth_float_buffer(do_render=do_render)))
+        return np.asarray(self.o3d_vis.capture_depth_float_buffer(do_render=do_render))
 
     def show(self):
         if not self.visible:

@@ -13,3 +13,15 @@ dependencies=[
 
 [tool.setuptools.packages.find]
 include = ["vis_utils"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+skip-magic-trailing-comma = true
+extend-exclude = '''
+(\.eggs|\.git|\.hg|\.mypy_cache|\.nox|\.tox|\.venv|_build|buck-out|build|dist|node_modules|.*_pb2.py|.*_pb2_grpc.py)
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120

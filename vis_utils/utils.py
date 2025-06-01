@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 
 
 def get_cur_timestamp():
-    return datetime.now().strftime('%m-%d_%H-%M-%S')
+    return datetime.now().strftime("%m-%d_%H-%M-%S")
 
 
 def reset_dir(dir):
@@ -28,45 +28,43 @@ def angle(v1, v2):
     return 2 * torch.atan((v1 * n2 - n1 * v2).norm() / (v1 * n2 + n1 * v2).norm())
 
 
-def ch_cam_pose_spec(T, src, tgt, pose_type='c2w'):
-    """ src/tgt spec:
-            0: x->right, y->front, z->up
-            1: x->right, y->down, z->front
-            2: x->right, y->up, z->back
-            3: x->front, y->left, z->up
-        pose_type:
-            'c2w': camera to world, where world can refer to any frame
-            'w2c': world to camera """
+def ch_cam_pose_spec(T, src, tgt, pose_type="c2w"):
+    """src/tgt spec:
+        0: x->right, y->front, z->up
+        1: x->right, y->down, z->front
+        2: x->right, y->up, z->back
+        3: x->front, y->left, z->up
+    pose_type:
+        'c2w': camera to world, where world can refer to any frame
+        'w2c': world to camera"""
     # x-to-0 transforms
-    Ts = np.array((np.eye(4),
-                   ((1, 0, 0, 0),
-                    (0, 0, 1, 0),
-                    (0, -1, 0, 0),
-                    (0, 0, 0, 1)),
-                   ((1, 0, 0, 0),
-                    (0, 0, -1, 0),
-                    (0, 1, 0, 0),
-                    (0, 0, 0, 1)),
-                   ((0, -1, 0, 0),
-                    (1, 0, 0, 0),
-                    (0, 0, 1, 0),
-                    (0, 0, 0, 1))), dtype=T.dtype)
+    Ts = np.array(
+        (
+            np.eye(4),
+            ((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)),
+            ((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)),
+            ((0, -1, 0, 0), (1, 0, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)),
+        ),
+        dtype=T.dtype,
+    )
     s = T.shape[-2:]
     T = homogenize_transforms(T)
-    return (T @ np.linalg.inv(Ts[src]) @ Ts[tgt] if pose_type == 'c2w' else np.linalg.inv(Ts[tgt]) @ Ts[src] @ T)[..., :s[0], :s[1]]
+    return (T @ np.linalg.inv(Ts[src]) @ Ts[tgt] if pose_type == "c2w" else np.linalg.inv(Ts[tgt]) @ Ts[src] @ T)[
+        ..., : s[0], : s[1]
+    ]
 
 
-def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
-    """ generates a c2w pose
-        c: camera center
-        t: target to look at
-        u: up vector
-        pose_spec: cam frame spec
-            0: x->right, y->front, z->up
-            1: x->right, y->down, z->front
-            2: x->right, y->up, z->back
-            3: x->front, y->left, z->up
-        pose_type: one of {'c2w', 'w2c'} """
+def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type="c2w"):
+    """generates a c2w pose
+    c: camera center
+    t: target to look at
+    u: up vector
+    pose_spec: cam frame spec
+        0: x->right, y->front, z->up
+        1: x->right, y->down, z->front
+        2: x->right, y->up, z->back
+        3: x->front, y->left, z->up
+    pose_type: one of {'c2w', 'w2c'}"""
     if u is None:
         u = np.array((0, 0, 1))
     y = t - c
@@ -75,14 +73,14 @@ def gen_lookat_pose(c, t, u=None, pose_spec=2, pose_type='c2w'):
     x = x / np.linalg.norm(x)
     z = np.cross(x, y)
     R = ch_cam_pose_spec(np.array((x, y, z)).T, 0, pose_spec)
-    if pose_type == 'w2c':
+    if pose_type == "w2c":
         R = R.T
         c = -R @ c
     return np.concatenate((R, c[:, None]), axis=1, dtype=np.float32)
 
 
 def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, target=None, up=None, n=10, pose_spec=2):
-    """ generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h """
+    """generate n poses (c2w) distributed along an ellipse of (a, b, theta) at height h"""
     if azimuth_lo is None:
         azimuth_lo = 0
     if azimuth_hi is None:
@@ -101,14 +99,29 @@ def gen_elliptical_poses(a, b, theta, h, azimuth_lo=None, azimuth_hi=None, targe
 
 
 def gen_circular_poses(r, h, azimuth_lo=None, azimuth_hi=None, target=None, up=None, n=10, pose_spec=2):
-    """ generate n poses (c2w) distributed along a circle of radius r at height h """
-    return gen_elliptical_poses(r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec)
+    """generate n poses (c2w) distributed along a circle of radius r at height h"""
+    return gen_elliptical_poses(
+        r, r, 0, h, azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec
+    )
 
 
-def gen_spherical_poses(r, elevation_lo, elevation_hi, azimuth_lo=None, azimuth_hi=None, target=None, up=None, m=3, n=10, pose_spec=2):
+def gen_spherical_poses(
+    r, elevation_lo, elevation_hi, azimuth_lo=None, azimuth_hi=None, target=None, up=None, m=3, n=10, pose_spec=2
+):
     c2ws = []
     for g in np.linspace(elevation_lo, elevation_hi, num=m):
-        c2ws.extend(gen_circular_poses(r * np.cos(g), r * np.sin(g), azimuth_lo=azimuth_lo, azimuth_hi=azimuth_hi, target=target, up=up, n=n, pose_spec=pose_spec))
+        c2ws.extend(
+            gen_circular_poses(
+                r * np.cos(g),
+                r * np.sin(g),
+                azimuth_lo=azimuth_lo,
+                azimuth_hi=azimuth_hi,
+                target=target,
+                up=up,
+                n=n,
+                pose_spec=pose_spec,
+            )
+        )
     return c2ws
 
 
@@ -120,11 +133,39 @@ def gen_spherical_spiral_poses(r, elevation_lo, elevation_hi, start, end, target
     for i in range(n):
         elevation = elevation_lo + (elevation_hi - elevation_lo) * i / (n - 1)
         azimuth = (start + (end - start) * i / (n - 1)) * np.pi * 2
-        c2ws.append(gen_lookat_pose(np.array((r * np.cos(elevation) * np.cos(azimuth), r * np.cos(elevation) * np.sin(azimuth), r * np.sin(elevation))), target, u=up, pose_spec=pose_spec))
+        c2ws.append(
+            gen_lookat_pose(
+                np.array(
+                    (
+                        r * np.cos(elevation) * np.cos(azimuth),
+                        r * np.cos(elevation) * np.sin(azimuth),
+                        r * np.sin(elevation),
+                    )
+                ),
+                target,
+                u=up,
+                pose_spec=pose_spec,
+            )
+        )
     return c2ws
 
 
-def gen_spherical_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_lo, azimuth_hi, roll_lo, roll_hi, G_box, s_box, n, u=None, pose_spec=2, pose_type='c2w'):
+def gen_spherical_random_poses(
+    r_lo,
+    r_hi,
+    elevation_lo,
+    elevation_hi,
+    azimuth_lo,
+    azimuth_hi,
+    roll_lo,
+    roll_hi,
+    G_box,
+    s_box,
+    n,
+    u=None,
+    pose_spec=2,
+    pose_type="c2w",
+):
     """
     G_box: the pose of the target box in world coordinates. The origin of the box is at its center.
     s_box: the scale of the target box in world units.
@@ -146,7 +187,7 @@ def gen_spherical_random_poses(r_lo, r_hi, elevation_lo, elevation_hi, azimuth_l
 
 
 def homogenize_vecs(vecs, val=1):
-    """ homogenize vecs to be (..., 4, 1) """
+    """homogenize vecs to be (..., 4, 1)"""
     if vecs.shape[-1] != 1:
         vecs = vecs[..., None]
     s = vecs.shape
@@ -158,18 +199,22 @@ def homogenize_vecs(vecs, val=1):
 
 
 def homogenize_transforms(T):
-    """ homogenize transform matrices to be (..., 4, 4) """
+    """homogenize transform matrices to be (..., 4, 4)"""
     s = T.shape
     if s[-2:] == (4, 4):
         return T
-    T_h = np.zeros((*s[:-2], 4, 4), dtype=T.dtype) if isinstance(T, np.ndarray) else torch.zeros(*s[:-2], 4, 4, dtype=T.dtype, device=T.device)
-    T_h[..., :3, :s[-1]] = T
+    T_h = (
+        np.zeros((*s[:-2], 4, 4), dtype=T.dtype)
+        if isinstance(T, np.ndarray)
+        else torch.zeros(*s[:-2], 4, 4, dtype=T.dtype, device=T.device)
+    )
+    T_h[..., :3, : s[-1]] = T
     T_h[..., 3, 3] = 1
     return T_h
 
 
 def decompose_sim3(T):
-    """ T: (..., 4, 4) """
+    """T: (..., 4, 4)"""
     is_np = isinstance(T, np.ndarray)
     if is_np:
         T = torch.from_numpy(T)
@@ -205,7 +250,7 @@ def avg_trans(Ts, s=None, avg_func=np.mean):
 
 
 def imgs_cat(imgs, axis, interval=0, color=255):
-    assert axis in {0, 1}, 'axis must be either 0 or 1'
+    assert axis in {0, 1}, "axis must be either 0 or 1"
     h, w, c = imgs[0].shape
     gap = np.broadcast_to(color, (h, interval, c) if axis else (interval, w, c)).astype(imgs[0].dtype)
     t = [gap] * (len(imgs) * 2 - 1)
@@ -213,13 +258,13 @@ def imgs_cat(imgs, axis, interval=0, color=255):
     return np.concatenate(t, axis=axis)
 
 
-def draw_pt(img, pt, K, pose=None, pose_spec=2, pose_type='c2w', radius=10, color=(160, 160, 160), thickness=-1):
-    """ Draw a point specified in world coordinates on a calibrated image. """
+def draw_pt(img, pt, K, pose=None, pose_spec=2, pose_type="c2w", radius=10, color=(160, 160, 160), thickness=-1):
+    """Draw a point specified in world coordinates on a calibrated image."""
     if pose is None:
         pose = np.eye(4)
-    elif pose_type == 'c2w':
+    elif pose_type == "c2w":
         pose = np.linalg.inv(pose)
-    pose = ch_cam_pose_spec(pose, pose_spec, 1, pose_type='w2c')
+    pose = ch_cam_pose_spec(pose, pose_spec, 1, pose_type="w2c")
     pt_cam = pose @ homogenize_vecs(pt)
     pt_img = (K @ pt_cam[:3] / pt_cam[2])[:2, 0]
     cv2.circle(img, pt_img.astype(int), radius, color, thickness=thickness)
@@ -264,7 +309,7 @@ def to_np_color(color):
     return color
 
 
-def to_pt_color(color, channel_first=False, device='cuda'):
+def to_pt_color(color, channel_first=False, device="cuda"):
     if isinstance(color, np.ndarray):
         if channel_first and color.shape[-1] <= 4:
             color = color.transpose(2, 0, 1)
@@ -284,7 +329,7 @@ def to_np_depth(depth):
     return depth
 
 
-def to_pt_depth(depth, channel_first=False, device='cuda'):
+def to_pt_depth(depth, channel_first=False, device="cuda"):
     if isinstance(depth, np.ndarray):
         if channel_first and depth.shape[-1] == 1:
             depth = depth.transpose(2, 0, 1)
@@ -294,7 +339,19 @@ def to_pt_depth(depth, channel_first=False, device='cuda'):
     return depth
 
 
-def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(80, 80, 80), thickness=2):
+def put_texts(
+    img,
+    txts,
+    x0=10,
+    y0=10,
+    dy=10,
+    offset=0,
+    bg=None,
+    font_face=cv2.FONT_HERSHEY_SIMPLEX,
+    font_scale=1,
+    color=(80, 80, 80),
+    thickness=2,
+):
     if bg is not None:
         match np.size(bg):
             case 1:
@@ -324,10 +381,21 @@ def put_texts(img, txts, x0=10, y0=10, dy=10, offset=0, bg=None, font_face=cv2.F
 
 def pad_imgs(imgs, color=(0, 0, 0)):
     h_max, w_max = np.array([img.shape[:2] for img in imgs]).max(axis=0)
-    return [cv2.copyMakeBorder(img, (h_max - img.shape[0]) // 2, -((img.shape[0] - h_max) // 2), (w_max - img.shape[1]) // 2, -((img.shape[1] - w_max) // 2), cv2.BORDER_CONSTANT, value=color) for img in imgs]
+    return [
+        cv2.copyMakeBorder(
+            img,
+            (h_max - img.shape[0]) // 2,
+            -((img.shape[0] - h_max) // 2),
+            (w_max - img.shape[1]) // 2,
+            -((img.shape[1] - w_max) // 2),
+            cv2.BORDER_CONSTANT,
+            value=color,
+        )
+        for img in imgs
+    ]
 
 
-def colorize_depth(depth, colormap='viridis', **kwargs):
+def colorize_depth(depth, colormap="viridis", **kwargs):
     normalized_depth = Normalize(**kwargs)(depth)
     colorized_depth = plt.get_cmap(colormap)(normalized_depth)
     return (colorized_depth[..., :3] * 255).astype(np.uint8)
@@ -338,9 +406,9 @@ def normalize_vecs(vecs, axis=-1):
     return vecs / norms, norms[..., 0]
 
 
-def pose_lerp(G0, G1, ts, pose_type='o2w'):
-    """ Linearly interpolate/extrapolate from two poses. """
-    if pose_type.startswith('w2'):
+def pose_lerp(G0, G1, ts, pose_type="o2w"):
+    """Linearly interpolate/extrapolate from two poses."""
+    if pose_type.startswith("w2"):
         G0, G1 = np.linalg.inv(G0), np.linalg.inv(G1)
     G10 = np.linalg.inv(G0) @ G1
     R10, t10 = G10[:3, :3], G10[:3, 3]
@@ -350,22 +418,25 @@ def pose_lerp(G0, G1, ts, pose_type='o2w'):
     tt0 = t10 * ts
     Gt0 = homogenize_transforms(np.concatenate((Rt0, tt0[..., None]), axis=-1))
     Gt = G0 @ Gt0
-    if pose_type.startswith('w2'):
+    if pose_type.startswith("w2"):
         return np.linalg.inv(Gt)
     return Gt
 
 
 def vids_cat(vids, axis, annotations=None, color=(240, 0, 0)):
     if annotations is None:
-        annotations = [''] * len(vids)
-    return [imgs_cat([put_texts(img, annotation, color=color) for img, annotation in zip(imgs, annotations)], axis) for imgs in zip(*vids)]
+        annotations = [""] * len(vids)
+    return [
+        imgs_cat([put_texts(img, annotation, color=color) for img, annotation in zip(imgs, annotations)], axis)
+        for imgs in zip(*vids)
+    ]
 
 
 def plt2img(axis_off=False):
     if axis_off:
-        plt.axis('off')
+        plt.axis("off")
     with BytesIO() as buffer:
-        plt.savefig(buffer, bbox_inches='tight', pad_inches=0)
+        plt.savefig(buffer, bbox_inches="tight", pad_inches=0)
         plt.close()
         return imread(buffer)
 
@@ -379,12 +450,14 @@ def img_alpha_composite(img, bg=255):
     return (img * alpha + bg * (1 - alpha)).astype(np.uint8)
 
 
-def img_trim(img, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th=128, make_transparent=False, return_border=False):
+def img_trim(
+    img, keep: Literal["dark", "light"] = "dark", dark_th=200, light_th=128, make_transparent=False, return_border=False
+):
     img = img[..., :3]
-    if keep == 'dark':
-        flags = np.mean(img, 2) < dark_th    # keep dark contents. lower th results in smaller area
+    if keep == "dark":
+        flags = np.mean(img, 2) < dark_th  # keep dark contents. lower th results in smaller area
     else:
-        flags = np.mean(img, 2) > light_th    # keep light contents. higher th results in smaller area
+        flags = np.mean(img, 2) > light_th  # keep light contents. higher th results in smaller area
     col_flags = np.any(flags, 0)
     col_start = next(i for i, flag in enumerate(col_flags) if flag)
     col_end = next(i for i, flag in zip(reversed(range(len(col_flags))), reversed(col_flags)) if flag) + 1
@@ -398,13 +471,23 @@ def img_trim(img, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th
     return img[row_start:row_end, col_start:col_end]
 
 
-def imgs_trim(imgs, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_th=128, target_aspect_ratio=None, allow_landscape=False, allow_portrait=False, pad=0, return_border=False):
+def imgs_trim(
+    imgs,
+    keep: Literal["dark", "light"] = "dark",
+    dark_th=200,
+    light_th=128,
+    target_aspect_ratio=None,
+    allow_landscape=False,
+    allow_portrait=False,
+    pad=0,
+    return_border=False,
+):
     h, w = imgs[0].shape[:2]
     if target_aspect_ratio is None:
         ar = w / h
     else:
         ar = target_aspect_ratio
-    t_min, b_max, l_min, r_max = float('inf'), float('-inf'), float('inf'), float('-inf')
+    t_min, b_max, l_min, r_max = (float("inf"), float("-inf"), float("inf"), float("-inf"))
     for img in imgs:
         t, b, l, r = img_trim(img, keep=keep, dark_th=dark_th, light_th=light_th, return_border=True)
         t_min = min(t_min, t)
@@ -435,3 +518,12 @@ def imgs_trim(imgs, keep: Literal['dark', 'light'] = 'dark', dark_th=200, light_
     if return_border:
         return t_min, b_max, l_min, r_max
     return [img[t_min:b_max, l_min:r_max] for img in imgs]
+
+
+def mesh_denoise(mesh, th=0.1):
+    cluster_ids_per_triangle, n_triangles_per_cluster, _ = mesh.cluster_connected_triangles()
+    cluster_ids_per_triangle = np.asarray(cluster_ids_per_triangle)
+    n_triangles_per_cluster = np.asarray(n_triangles_per_cluster)
+    triangles_to_remove = n_triangles_per_cluster[cluster_ids_per_triangle] < n_triangles_per_cluster.max() * th
+    mesh.remove_triangles_by_mask(triangles_to_remove)
+    return mesh
