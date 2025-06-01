@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from shutil import rmtree
 from typing import Literal
@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 
 
 def get_cur_timestamp():
-    return datetime.now().strftime("%m-%d_%H-%M-%S")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def reset_dir(dir):
